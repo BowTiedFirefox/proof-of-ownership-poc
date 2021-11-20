@@ -23,10 +23,10 @@ from ecdsa.curves import SECP256k1
 from ecdsa import numbertheory
 from eth_account._utils.signing import extract_chain_id, to_standard_v, serializable_unsigned_transaction_from_dict
 # try one of those if the other doesn't work
-# from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
-from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
+from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
+# from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
 
-w3 = web3.Web3(web3.HTTPProvider('http://127.0.0.1:8545'))
+w3 = web3.Web3(web3.HTTPProvider('http://70.34.202.248:8545'))
 
 
 
@@ -311,7 +311,7 @@ def export_signature_javascript(y, message, signature, foler_name='./data', file
 def get_keys_from_txs(tx_vect):
     pubs=[]
     for i in range(len(tx_vect)):
-        print("Getting pubkey", i+1 ,"of",len(tx_vect))
+        print("Getting decoy pubkey", i+1 ,"of",len(tx_vect))
         tx = w3.eth.getTransaction(tx_vect[i])
         tx.hash
 
@@ -344,14 +344,15 @@ def main():
     # one, but if it's fixed, then anyone knows that the signer is the first
     y=[]
 
-    priv = '0x0a2d4e9ee178f440cc147e3b022cfd36f6a5b543a773a100aeaab87fcaf4bc0a'
-    priv_num = int('0x0a2d4e9ee178f440cc147e3b022cfd36f6a5b543a773a100aeaab87fcaf4bc0a',16)
+    priv = '0x486a304a362cf2c6a0d47e6440b2b179a67e2bcfbf14992e1c193873674e7f73'
+    priv_num = int(priv,16)
     priv_bytes=bytes.fromhex(priv[2:])
     x=eth_keys.keys.PrivateKey(priv_bytes) 
     y1,y2=get_coordinates_from_pubkey(x.public_key.to_hex())
     y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve,y1,y2))
 
-    tx_vect=["0x0ad477f51c4192ccb7312fd7408ed455890d2c1cb68ba89ce03e3523ebbb6d85","0x5e1b2c120ba4c259f562dfc507824bf25b856fcb5f238fa61b8d1f170e728b2a"]
+    # only transaction of decoy pubkeys
+    tx_vect=["0x351f47a100a93b6313be335c1f61642f597ceb9d863913787a30f6e044b9b86e","0xc5c4d175ea696cce5d14f772ae0d0830e837b74ceef371deea035a3a7c00e289"]
     pubs=get_keys_from_txs(tx_vect)
 
     for i in pubs:
@@ -367,10 +368,11 @@ def main():
     i = 0
     signature = ring_signature(priv_num, i, message, y)
 
-    print(pubs)
-    print(signature)
+    # print(pubs)
+    # print(signature)
 
     assert(verify_ring_signature(message, y, *signature))
+    print("signed message verification ok!")
 
 
 if __name__ == '__main__':

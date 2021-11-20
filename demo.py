@@ -23,7 +23,7 @@ from ecdsa.curves import SECP256k1
 from ecdsa import numbertheory
 from eth_account._utils.signing import extract_chain_id, to_standard_v, serializable_unsigned_transaction_from_dict
 # try one of those if the other doesn't work
-from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
+from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
 # from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
 
 w3 = web3.Web3(web3.HTTPProvider('http://70.34.202.248:8545'))

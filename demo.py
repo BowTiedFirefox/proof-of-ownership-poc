@@ -16,6 +16,7 @@ import functools
 import ecdsa
 import web3
 import eth_keys
+from decimal import Decimal
 
 from ecdsa.util import randrange
 from ecdsa.ecdsa import curve_secp256k1
@@ -28,9 +29,9 @@ from eth_account._utils.signing import (
 )
 
 # try one of those if the other doesn't work
-from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
+#from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
 
-# from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
+from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
 
 w3 = web3.Web3(web3.HTTPProvider("http://70.34.202.248:8545"))
 
@@ -331,7 +332,7 @@ def get_keys_from_txs(tx_vect):
     pubs = []
     for i in range(len(tx_vect)):
         print("Getting decoy pubkey", i + 1, "of", len(tx_vect))
-        tx = w3.eth.getTransaction(tx_vect[i])
+        tx = w3.eth.get_transaction(tx_vect[i])
         tx.hash
 
         s = w3.eth.account._keys.Signature(
@@ -361,16 +362,83 @@ def get_coordinates_from_pubkey(pub):
 def create_random_message():
     return os.urandom(32).hex()
 
+def get_account_balance_ETH(accountAddress):
+    return w3.eth.get_balance(accountAddress)
+
+# https://stackoverflow.com/questions/54528001/how-to-get-the-specific-token-balance-available-at-a-give-eth-address-using-web3
+def get_account_balance_token(tokenAddr,accountAddress):
+    pass
+
+def check_condition(condition):
+    """
+    This function check for the condition specified
+    PARAMS
+    ------
+        condition: JSON with condition name and parameters for transaction
+    RETURNS
+    -------
+        True if condition is met
+        False otherwise
+    """
+    if condition['name'] == 'more_than_token':
+        amt = condition['amount']
+        addr = condition['address']
+        if condition['token'] == "ETH" or condition['token'] == "eth":
+            if get_account_balance_ETH(addr) > amt:
+                return True
+            return False
+        else:
+            pass
+            # if get_account_balance_token(addr) > amt:
+            #     return True
+            # return False
+    if condition['name'] == 'more_or_equal_than_token':
+        amt = condition['amount']
+        addr = condition['address']
+        if condition['token'] == "ETH" or condition['token'] == "eth":
+            if get_account_balance_ETH(addr) >= amt:
+                return True
+            return False
+        else:
+            pass
+            # if get_account_balance_token(addr) > amt:
+            #     return True
+            # return False
+    if condition['name'] == 'less_than_token':
+        amt = condition['amount']
+        addr = condition['address']
+        if condition['token'] == "ETH" or condition['token'] == "eth":
+            if get_account_balance_ETH(addr) < amt:
+                return True
+            return False
+        else:
+            pass
+            # if get_account_balance_token(addr) > amt:
+            #     return True
+            # return False
+    if condition['name'] == 'less_or_equal_than_token':
+        amt = condition['amount']
+        addr = condition['address']
+        if condition['token'] == "ETH" or condition['token'] == "eth":
+            if get_account_balance_ETH(addr) <= amt:
+                return True
+            return False
+        else:
+            pass
+            # if get_account_balance_token(addr) > amt:
+            #     return True
+            # return False
 
 def main():
     # TODO: randomize the position of the signer; right now it is the first
     # one, but if it's fixed, then anyone knows that the signer is the first
     y = []
-
+    addr = []
     priv = "0x486a304a362cf2c6a0d47e6440b2b179a67e2bcfbf14992e1c193873674e7f73"
     priv_num = int(priv, 16)
     priv_bytes = bytes.fromhex(priv[2:])
     x = eth_keys.keys.PrivateKey(priv_bytes)
+    addr.append(x.public_key.to_checksum_address())
     y1, y2 = get_coordinates_from_pubkey(x.public_key.to_hex())
     y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
 
@@ -381,7 +449,9 @@ def main():
     ]
     pubs = get_keys_from_txs(tx_vect)
 
+    # get addresses
     for i in pubs:
+        addr.append(eth_keys.keys.PublicKey(bytes.fromhex(i[2:])).to_checksum_address())
         y1, y2 = get_coordinates_from_pubkey(i)
         y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
     # y = list(map(lambda xi: SECP256k1.generator * xi, x))
@@ -397,7 +467,22 @@ def main():
     # print(pubs)
     # print(signature)
 
-    assert verify_ring_signature(message, y, *signature)
+
+    #create condition
+    condition={}
+    condition['name'] = 'more_or_equal_than_token'
+    condition['amount'] = w3.toWei(Decimal('1'), 'ether') #condition true
+    # condition['amount'] = w3.toWei(Decimal('100'), 'ether') #condition false
+    condition['token'] = 'ETH'
+
+    # veriy condition for each address
+    cond_res = True
+    for i in addr:
+        condition['address'] = i
+        if check_condition(condition) == False:
+            cond_res = False
+
+    assert cond_res and verify_ring_signature(message, y, *signature)
     print("signed message verification ok!")
 
 

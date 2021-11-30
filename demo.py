@@ -333,7 +333,6 @@ def get_keys_from_txs(tx_vect):
     for i in range(len(tx_vect)):
         print("Getting decoy pubkey", i + 1, "of", len(tx_vect))
         tx = w3.eth.get_transaction(tx_vect[i])
-        print(tx)
 
         s = w3.eth.account._keys.Signature(
             vrs=(

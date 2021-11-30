@@ -29,7 +29,7 @@ from eth_account._utils.signing import (
 )
 
 # try one of those if the other doesn't work
-#from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
+# from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
 
 from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
 
@@ -333,7 +333,7 @@ def get_keys_from_txs(tx_vect):
     for i in range(len(tx_vect)):
         print("Getting decoy pubkey", i + 1, "of", len(tx_vect))
         tx = w3.eth.get_transaction(tx_vect[i])
-        tx.hash
+        print(tx)
 
         s = w3.eth.account._keys.Signature(
             vrs=(
@@ -362,12 +362,15 @@ def get_coordinates_from_pubkey(pub):
 def create_random_message():
     return os.urandom(32).hex()
 
+
 def get_account_balance_ETH(accountAddress):
     return w3.eth.get_balance(accountAddress)
 
+
 # https://stackoverflow.com/questions/54528001/how-to-get-the-specific-token-balance-available-at-a-give-eth-address-using-web3
-def get_account_balance_token(tokenAddr,accountAddress):
+def get_account_balance_token(tokenAddr, accountAddress):
     pass
+
 
 def check_condition(condition):
     """
@@ -380,54 +383,41 @@ def check_condition(condition):
         True if condition is met
         False otherwise
     """
-    if condition['name'] == 'more_than_token':
-        amt = condition['amount']
-        addr = condition['address']
-        if condition['token'] == "ETH" or condition['token'] == "eth":
-            if get_account_balance_ETH(addr) > amt:
-                return True
-            return False
-        else:
-            pass
-            # if get_account_balance_token(addr) > amt:
-            #     return True
-            # return False
-    if condition['name'] == 'more_or_equal_than_token':
-        amt = condition['amount']
-        addr = condition['address']
-        if condition['token'] == "ETH" or condition['token'] == "eth":
-            if get_account_balance_ETH(addr) >= amt:
-                return True
-            return False
-        else:
-            pass
-            # if get_account_balance_token(addr) > amt:
-            #     return True
-            # return False
-    if condition['name'] == 'less_than_token':
-        amt = condition['amount']
-        addr = condition['address']
-        if condition['token'] == "ETH" or condition['token'] == "eth":
-            if get_account_balance_ETH(addr) < amt:
-                return True
-            return False
-        else:
-            pass
-            # if get_account_balance_token(addr) > amt:
-            #     return True
-            # return False
-    if condition['name'] == 'less_or_equal_than_token':
-        amt = condition['amount']
-        addr = condition['address']
-        if condition['token'] == "ETH" or condition['token'] == "eth":
-            if get_account_balance_ETH(addr) <= amt:
-                return True
-            return False
-        else:
-            pass
-            # if get_account_balance_token(addr) > amt:
-            #     return True
-            # return False
+    if condition["name"] == "more_than_token":
+        amt = condition["amount"]
+        addr = condition["address"]
+        return (
+            condition["token"].lower() == "eth" and get_account_balance_ETH(addr) > amt
+        )
+        # if get_account_balance_token(addr) > amt:
+        #     return True
+        # return False
+    if condition["name"] == "more_or_equal_than_token":
+        amt = condition["amount"]
+        addr = condition["address"]
+        return (
+            condition["token"].lower() == "eth" and get_account_balance_ETH(addr) >= amt
+        )
+
+        # if get_account_balance_token(addr) > amt:
+        #     return True
+        # return False
+    if condition["name"] == "less_than_token":
+        amt = condition["amount"]
+        addr = condition["address"]
+        return (
+            condition["token"].lower() == "eth" and get_account_balance_ETH(addr) < amt
+        )
+        # if get_account_balance_token(addr) > amt:
+        #     return True
+        # return False
+    if condition["name"] == "less_or_equal_than_token":
+        amt = condition["amount"]
+        addr = condition["address"]
+        return (
+            condition["token"].lower() == "eth" and get_account_balance_ETH(addr) <= amt
+        )
+
 
 def main():
     # TODO: randomize the position of the signer; right now it is the first
@@ -467,22 +457,22 @@ def main():
     # print(pubs)
     # print(signature)
 
-
-    #create condition
-    condition={}
-    condition['name'] = 'more_or_equal_than_token'
-    condition['amount'] = w3.toWei(Decimal('1'), 'ether') #condition true
+    # create condition
+    condition = {}
+    condition["name"] = "more_or_equal_than_token"
+    condition["amount"] = w3.toWei(Decimal("1"), "ether")  # condition true
     # condition['amount'] = w3.toWei(Decimal('100'), 'ether') #condition false
-    condition['token'] = 'ETH'
+    condition["token"] = "ETH"
 
     # veriy condition for each address
     cond_res = True
     for i in addr:
-        condition['address'] = i
+        condition["address"] = i
         if check_condition(condition) == False:
             cond_res = False
 
-    assert cond_res and verify_ring_signature(message, y, *signature)
+    assert cond_res
+    assert verify_ring_signature(message, y, *signature)
     print("signed message verification ok!")
 
 

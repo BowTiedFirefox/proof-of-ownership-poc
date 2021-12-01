@@ -17,7 +17,7 @@ import ecdsa
 import web3
 import eth_keys
 from decimal import Decimal
-
+import requests
 from ecdsa.util import randrange
 from ecdsa.ecdsa import curve_secp256k1
 from ecdsa.curves import SECP256k1
@@ -371,6 +371,37 @@ def get_account_balance_token(tokenAddr, accountAddress):
     pass
 
 
+def get_addresses_from_collection(collection, n=10):
+    # TODO: not only opensea; need more?
+    url="https://api.opensea.io/api/v1/assets?order_direction=desc&collection="+collection+"&offset=0&limit="+str(n)
+    response = requests.get(url)
+    rj=response.json()
+    addresses=[]
+    for i in range(n): 
+        addr=rj['assets'][i]['owner']['address']
+        if addr != '0x0000000000000000000000000000000000000000':
+            addresses.append(addr)
+    return addresses
+
+def get_transactions_from_address(account, start_block=0, end_block=w3.eth.blockNumber):
+    # ?: uses our node; should we use etherscan?
+    # see why here: https://ethereum.stackexchange.com/a/16113/47024
+    # uses our node;
+    # see https://stackoverflow.com/questions/69544988/how-to-filter-eth-transactions-by-address-with-web3-py
+    account=str(account)
+    assert w3.isChecksumAddress(account)
+    for block_num in range(start_block, end_block):
+        current_block = block_num
+        print("blocknum is")
+        # Get block with specific number with all transactions
+        block = w3.eth.getBlock(block_num, full_transactions=True)
+        list_of_block_transactions = block.transactions
+        for transaction in list_of_block_transactions:
+            from_account = transaction['from']
+            if from_account == account:
+                print("Found Transaction from",account, "with HASH-HEX:", transaction['hash'].hex())
+                return transaction['hash'].hex()
+
 def check_condition(condition):
     """
     This function check for the condition specified
@@ -432,6 +463,15 @@ def main():
     y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
 
     # only transaction of decoy pubkeys
+
+    # this block used when we connect to ETH mainnet
+    # collection = "cryptopunks"
+    # addresses=get_addresses_from_collection(collection,50)
+    # tx_vect=[]
+    # for i in addresses:
+    #     tx_vect.append(get_transactions_from_address(i))
+
+    # manual transaction vector
     tx_vect = [
         "0x351f47a100a93b6313be335c1f61642f597ceb9d863913787a30f6e044b9b86e",
         "0xc5c4d175ea696cce5d14f772ae0d0830e837b74ceef371deea035a3a7c00e289",

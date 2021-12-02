@@ -18,6 +18,7 @@ import web3
 import eth_keys
 from decimal import Decimal
 import requests
+from tenacity import retry, wait_exponential, TryAgain
 from ecdsa.util import randrange
 from ecdsa.ecdsa import curve_secp256k1
 from ecdsa.curves import SECP256k1
@@ -371,24 +372,30 @@ def get_account_balance_token(tokenAddr, accountAddress):
     pass
 
 
-def get_addresses_from_collection(collection, n=10):
-    # TODO: not only opensea; need more?
-    url="https://api.opensea.io/api/v1/assets?order_direction=desc&collection="+collection+"&offset=0&limit="+str(n)
-    response = requests.get(url)
-    rj=response.json()
-    addresses=[]
-    for i in range(n): 
-        addr=rj['assets'][i]['owner']['address']
-        if addr != '0x0000000000000000000000000000000000000000':
-            addresses.append(addr)
+@retry(wait=wait_exponential(multiplier=1, min=4, max=10))
+def get_addresses_from_opensea_collection(collection, n=10):
+    try:
+        url = f"https://api.opensea.io/api/v1/assets?order_direction=desc&collection={collection}&offset=0&limit={n}"
+        response = requests.get(url)
+        rj = response.json()
+
+        addresses = [
+            rj["assets"][i]["owner"]["address"]
+            for i in range(n)
+            if rj["assets"][i]["owner"]["address"]
+            != "0x0000000000000000000000000000000000000000"
+        ]
+    except Exception as e:
+        raise TryAgain
     return addresses
+
 
 def get_transactions_from_address(account, start_block=0, end_block=w3.eth.blockNumber):
     # ?: uses our node; should we use etherscan?
     # see why here: https://ethereum.stackexchange.com/a/16113/47024
     # uses our node;
     # see https://stackoverflow.com/questions/69544988/how-to-filter-eth-transactions-by-address-with-web3-py
-    account=str(account)
+    account = str(account)
     assert w3.isChecksumAddress(account)
     for block_num in range(start_block, end_block):
         current_block = block_num
@@ -397,10 +404,16 @@ def get_transactions_from_address(account, start_block=0, end_block=w3.eth.block
         block = w3.eth.getBlock(block_num, full_transactions=True)
         list_of_block_transactions = block.transactions
         for transaction in list_of_block_transactions:
-            from_account = transaction['from']
+            from_account = transaction["from"]
             if from_account == account:
-                print("Found Transaction from",account, "with HASH-HEX:", transaction['hash'].hex())
-                return transaction['hash'].hex()
+                print(
+                    "Found Transaction from",
+                    account,
+                    "with HASH-HEX:",
+                    transaction["hash"].hex(),
+                )
+                return transaction["hash"].hex()
+
 
 def check_condition(condition):
     """
@@ -466,7 +479,7 @@ def main():
 
     # this block used when we connect to ETH mainnet
     # collection = "cryptopunks"
-    # addresses=get_addresses_from_collection(collection,50)
+    # addresses=get_addresses_from_opensea_collection(collection,50)
     # tx_vect=[]
     # for i in addresses:
     #     tx_vect.append(get_transactions_from_address(i))

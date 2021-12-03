@@ -374,19 +374,19 @@ def get_account_balance_token(tokenAddr, accountAddress):
 
 @retry(wait=wait_exponential(multiplier=1, min=4, max=10))
 def get_addresses_from_opensea_collection(collection, n=10):
-    try:
-        url = f"https://api.opensea.io/api/v1/assets?order_direction=desc&collection={collection}&offset=0&limit={n}"
-        response = requests.get(url)
-        rj = response.json()
-
-        addresses = [
-            rj["assets"][i]["owner"]["address"]
-            for i in range(n)
-            if rj["assets"][i]["owner"]["address"]
-            != "0x0000000000000000000000000000000000000000"
-        ]
-    except Exception as e:
+    url = f"https://api.opensea.io/api/v1/assets?order_direction=desc&collection={collection}&offset=0&limit={n}"
+    response = requests.get(url)
+    if response.status_code != 200:
         raise TryAgain
+
+    rj = response.json()
+
+    addresses = [
+        rj["assets"][i]["owner"]["address"]
+        for i in range(n)
+        if rj["assets"][i]["owner"]["address"]
+        != "0x0000000000000000000000000000000000000000"
+    ]
     return addresses
 
 

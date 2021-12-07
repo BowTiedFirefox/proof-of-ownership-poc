@@ -36,6 +36,13 @@ from eth_account._utils.legacy_transactions import ALLOWED_TRANSACTION_KEYS
 
 w3 = web3.Web3(web3.HTTPProvider("http://70.34.202.248:8545"))
 
+# etherscan end points
+etherscan_endpoints = {}
+etherscan_endpoints["mainnet"] = "https://api.etherscan.io/"
+etherscan_endpoints["goerli"] = "https://api-goerli.etherscan.io/"
+etherscan_endpoints["kovan"] = "https://api-kovan.etherscan.io/"
+etherscan_endpoints["rinkeby"] = "https://api-rinkeby.etherscan.io/"
+etherscan_endpoints["ropsten"] = "https://api-ropsten.etherscan.io/"
 
 def ring_signature(
     siging_key, key_idx, M, L, G=SECP256k1.generator, hash_func=hashlib.sha3_256
@@ -389,30 +396,48 @@ def get_addresses_from_opensea_collection(collection, n=10):
     ]
     return addresses
 
-
-def get_transactions_from_address(account, start_block=0, end_block=w3.eth.blockNumber):
+@retry(wait=wait_exponential(multiplier=1, min=4, max=10))
+def get_transactions_from_address(account, provider="etherscan", start_block=0, end_block=w3.eth.blockNumber, net="kovan"):
     # ?: uses our node; should we use etherscan?
     # see why here: https://ethereum.stackexchange.com/a/16113/47024
-    # uses our node;
-    # see https://stackoverflow.com/questions/69544988/how-to-filter-eth-transactions-by-address-with-web3-py
-    account = str(account)
-    assert w3.isChecksumAddress(account)
-    for block_num in range(start_block, end_block):
-        current_block = block_num
-        print("blocknum is")
-        # Get block with specific number with all transactions
-        block = w3.eth.getBlock(block_num, full_transactions=True)
-        list_of_block_transactions = block.transactions
-        for transaction in list_of_block_transactions:
-            from_account = transaction["from"]
-            if from_account == account:
-                print(
-                    "Found Transaction from",
-                    account,
-                    "with HASH-HEX:",
-                    transaction["hash"].hex(),
-                )
-                return transaction["hash"].hex()
+
+    if provider == "etherscan":
+        if not (net == "main"or net == "mainnet" or net == "goerli" or net == "kovan" or net == "rinkeby" or net == "ropsten"):
+            print("net should be one of mainnet, goerli, kovan, rinkeby or ropsten") 
+            return 0
+        else:
+            url = etherscan_endpoints[net]
+            url = url + f"api?module=account&action=txlist&address={account}&startblock={start_block}&endblock={end_block}&page=1&offset=1&sort=asc&apikey=VNZ48HPPIYX5G7TJ3BD8JZEY23PZJ2TGIN" 
+
+            response = requests.get(url)
+            if response.status_code != 200:
+                raise TryAgain
+
+            rj = response.json()
+            tx_hash = rj["result"][0]["hash"]
+            return tx_hash
+            
+    if provider == "node" or provider == "w3":
+        # uses our node;
+        # see https://stackoverflow.com/questions/69544988/how-to-filter-eth-transactions-by-address-with-web3-py
+        account = str(account)
+        assert w3.isChecksumAddress(account)
+        for block_num in range(start_block, end_block):
+            current_block = block_num
+            print("blocknum is")
+            # Get block with specific number with all transactions
+            block = w3.eth.getBlock(block_num, full_transactions=True)
+            list_of_block_transactions = block.transactions
+            for transaction in list_of_block_transactions:
+                from_account = transaction["from"]
+                if from_account == account:
+                    print(
+                        "Found Transaction from",
+                        account,
+                        "with HASH-HEX:",
+                        transaction["hash"].hex(),
+                    )
+                    return transaction["hash"].hex()
 
 
 def check_condition(condition):
@@ -455,6 +480,14 @@ def check_condition(condition):
         #     return True
         # return False
     if condition["name"] == "less_or_equal_than_token":
+        amt = condition["amount"]
+        addr = condition["address"]
+        return (
+            condition["token"].lower() == "eth" and get_account_balance_ETH(addr) <= amt
+        )
+    if condition["name"] == "has_nft":
+        # need to check on etherscan the getPunk method as in 
+        # here https://kovan.etherscan.io/address/0x7a4040a2dc1a10bec77deea1f13bd8105b9400ec
         amt = condition["amount"]
         addr = condition["address"]
         return (

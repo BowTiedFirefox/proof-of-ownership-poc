@@ -409,7 +409,7 @@ def get_transactions_from_address(account, provider="etherscan", start_block=0, 
             url = etherscan_endpoints[net]
             url = url + f"api?module=account&action=txlist&address={account}&startblock={start_block}&endblock={end_block}&page=1&offset=1&sort=asc&apikey=VNZ48HPPIYX5G7TJ3BD8JZEY23PZJ2TGIN" 
 
-            response = requests.get(url)
+            response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
             if response.status_code != 200:
                 raise TryAgain
 

@@ -433,6 +433,8 @@ def get_transactions_from_address(
                 raise TryAgain
 
             rj = response.json()
+            if len(rj["result"]) == 0:
+                return ""
             tx_hash = rj["result"][0]["hash"]
             return tx_hash
 

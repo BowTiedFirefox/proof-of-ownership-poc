@@ -18,6 +18,7 @@ import web3
 import eth_keys
 from decimal import Decimal
 import requests
+import tenacity
 from tenacity import retry, wait_exponential, TryAgain
 from ecdsa.util import randrange
 from ecdsa.ecdsa import curve_secp256k1
@@ -423,7 +424,7 @@ def get_transactions_from_address(
                     "startblock": start_block,
                     "endblock": end_block,
                     "page": 1,
-                    "offset": 1,
+                    "offset": 100,
                     "sort": "asc",
                     "apikey": "VNZ48HPPIYX5G7TJ3BD8JZEY23PZJ2TGIN",
                 },
@@ -452,6 +453,78 @@ def get_transactions_from_address(
             for transaction in list_of_block_transactions:
                 from_account = transaction["from"]
                 if from_account == account:
+                    print(
+                        "Found Transaction from",
+                        account,
+                        "with HASH-HEX:",
+                        transaction["hash"].hex(),
+                    )
+                    return transaction["hash"].hex()
+
+@retry(wait=wait_exponential(multiplier=1, min=4, max=10))
+def get_addresses_from_contract(
+    contract_address,
+    method_id,
+    provider="etherscan",
+    start_block=0,
+    end_block=w3.eth.blockNumber,
+    net="kovan",
+):
+    # ?: uses our node; should we use etherscan?
+    # see why here: https://ethereum.stackexchange.com/a/16113/47024
+
+    if provider == "etherscan":
+        if not (net in ["main", "mainnet", "goerli", "kovan", "rinkeby", "ropsten"]):
+            print("net should be one of mainnet, goerli, kovan, rinkeby or ropsten")
+            return 0
+        else:
+            print('requesting...')
+            response = requests.get(
+                etherscan_endpoints[net],
+                params={
+                    "module": "account",
+                    "action": "txlist",
+                    "address": contract_address,
+                    "startblock": start_block,
+                    "endblock": end_block,
+                    "page": 1,
+                    "offset": 100,
+                    "sort": "asc",
+                    "apikey": "VNZ48HPPIYX5G7TJ3BD8JZEY23PZJ2TGIN",
+                },
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            print(f"response.status_code is {response.status_code}")
+
+            if response.status_code != 200:
+                print(f"response.status_code is {response.status_code}")
+                raise TryAgain
+
+            rj = response.json()
+            # print(rj)
+            hashes = []
+            if len(rj["result"]) == 0:
+                return ""
+            for i in range(len(rj["result"])):
+                if method_id in rj["result"][i]["input"][2:len(method_id)+2]:
+                    tx_hash = rj["result"][i]["from"]
+                    hashes.append(tx_hash)
+            return list(set(hashes))
+
+    if provider == "node" or provider == "w3":
+        # uses our node;
+        # see https://stackoverflow.com/questions/69544988/how-to-filter-eth-transactions-by-address-with-web3-py
+        account = str(contract_address)
+        assert w3.isChecksumAddress(contract_address)
+        for block_num in range(start_block, end_block):
+            current_block = block_num
+            print("blocknum is")
+            # Get block with specific number with all transactions
+            block = w3.eth.getBlock(block_num, full_transactions=True)
+            list_of_block_transactions = block.transactions
+            for transaction in list_of_block_transactions:
+                from_account = transaction["from"]
+                if from_account == contract_address:
                     print(
                         "Found Transaction from",
                         account,
@@ -519,68 +592,78 @@ def check_condition(condition):
 def main():
     # TODO: randomize the position of the signer; right now it is the first
     # one, but if it's fixed, then anyone knows that the signer is the first
-    y = []
-    addr = []
-    priv = "0x486a304a362cf2c6a0d47e6440b2b179a67e2bcfbf14992e1c193873674e7f73"
-    priv_num = int(priv, 16)
-    priv_bytes = bytes.fromhex(priv[2:])
-    x = eth_keys.keys.PrivateKey(priv_bytes)
-    addr.append(x.public_key.to_checksum_address())
-    y1, y2 = get_coordinates_from_pubkey(x.public_key.to_hex())
-    y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
+    
+    # y = []
+    # addr = []
+    # priv = "0x486a304a362cf2c6a0d47e6440b2b179a67e2bcfbf14992e1c193873674e7f73"
+    # priv_num = int(priv, 16)
+    # priv_bytes = bytes.fromhex(priv[2:])
+    # x = eth_keys.keys.PrivateKey(priv_bytes)
+    # addr.append(x.public_key.to_checksum_address())
+    # y1, y2 = get_coordinates_from_pubkey(x.public_key.to_hex())
+    # y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
 
-    # only transaction of decoy pubkeys
+    # # only transaction of decoy pubkeys
 
-    # this block used when we connect to ETH mainnet
-    # collection = "cryptopunks"
-    # addresses=get_addresses_from_opensea_collection(collection,50)
-    # tx_vect=[]
-    # for i in addresses:
-    #     tx_vect.append(get_transactions_from_address(i))
+    # # this block used when we connect to ETH mainnet
+    # # collection = "cryptopunks"
+    # # addresses=get_addresses_from_opensea_collection(collection,50)
+    # # tx_vect=[]
+    # # for i in addresses:
+    # #     tx_vect.append(get_transactions_from_address(i))
 
-    # manual transaction vector
-    tx_vect = [
-        "0x351f47a100a93b6313be335c1f61642f597ceb9d863913787a30f6e044b9b86e",
-        "0xc5c4d175ea696cce5d14f772ae0d0830e837b74ceef371deea035a3a7c00e289",
-    ]
-    pubs = get_keys_from_txs(tx_vect)
+    # # manual transaction vector
+    # tx_vect = [
+    #     "0x351f47a100a93b6313be335c1f61642f597ceb9d863913787a30f6e044b9b86e",
+    #     "0xc5c4d175ea696cce5d14f772ae0d0830e837b74ceef371deea035a3a7c00e289",
+    # ]
+    # pubs = get_keys_from_txs(tx_vect)
 
-    # get addresses
-    for i in pubs:
-        addr.append(eth_keys.keys.PublicKey(bytes.fromhex(i[2:])).to_checksum_address())
-        y1, y2 = get_coordinates_from_pubkey(i)
-        y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
-    # y = list(map(lambda xi: SECP256k1.generator * xi, x))
+    # # get addresses
+    # for i in pubs:
+    #     addr.append(eth_keys.keys.PublicKey(bytes.fromhex(i[2:])).to_checksum_address())
+    #     y1, y2 = get_coordinates_from_pubkey(i)
+    #     y.append(ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, y1, y2))
+    # # y = list(map(lambda xi: SECP256k1.generator * xi, x))
 
-    # given two coordinates of a point Y=(y1,y2)
-    # Point= ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve,y1,y2)
-    number_participants = len(y)
-    message = create_random_message()
+    # # given two coordinates of a point Y=(y1,y2)
+    # # Point= ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve,y1,y2)
+    # number_participants = len(y)
+    # message = create_random_message()
 
-    i = 0
-    signature = ring_signature(priv_num, i, message, y)
+    # i = 0
+    # signature = ring_signature(priv_num, i, message, y)
 
-    # print(pubs)
-    # print(signature)
+    # # print(pubs)
+    # # print(signature)
 
-    # create condition
-    condition = {}
-    condition["name"] = "more_or_equal_than_token"
-    condition["amount"] = w3.toWei(Decimal("1"), "ether")  # condition true
-    # condition['amount'] = w3.toWei(Decimal('100'), 'ether') #condition false
-    condition["token"] = "ETH"
+    # # create condition
+    # condition = {}
+    # condition["name"] = "more_or_equal_than_token"
+    # condition["amount"] = w3.toWei(Decimal("1"), "ether")  # condition true
+    # # condition['amount'] = w3.toWei(Decimal('100'), 'ether') #condition false
+    # condition["token"] = "ETH"
 
-    # veriy condition for each address
-    cond_res = True
-    for i in addr:
-        condition["address"] = i
-        if check_condition(condition) == False:
-            cond_res = False
+    # # veriy condition for each address
+    # cond_res = True
+    # for i in addr:
+    #     condition["address"] = i
+    #     if check_condition(condition) == False:
+    #         cond_res = False
 
-    assert cond_res
-    assert verify_ring_signature(message, y, *signature)
-    print("signed message verification ok!")
+    # assert cond_res
+    # assert verify_ring_signature(message, y, *signature)
+    # print("signed message verification ok!")
 
+    listtx = get_addresses_from_contract(
+    "0x7A4040a2DC1A10beC77dEEA1F13BD8105B9400Ec",
+    method_id='c81d1d5b',
+    provider="etherscan",
+    start_block=0,
+    end_block=38650789 ,
+    net="kovan",
+    )
+    print(listtx)
 
 if __name__ == "__main__":
     main()

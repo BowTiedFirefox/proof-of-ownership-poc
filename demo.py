@@ -549,16 +549,20 @@ def get_addresses_from_subgraph(beg_index, num_account):
     query = gql(
         """
         query($first: Int!, $skip: Int!){
-            accounts(first: $first, skip:$skip) {
+            tokens(first: $first, skip: $skip, orderBy: punkIndex, orderDirection: asc) {
                 id
-            }          
+                punkIndex
+                owner {
+                    id
+                }
+            }
         }
     """
     )
     params = {"first": num_account, "skip": beg_index}
 
     result = client.execute(query, variable_values=params)
-    account_ids = [account["id"] for account in result["accounts"]]
+    account_ids = [token["owner"]["id"] for token in result["tokens"]]
     return account_ids
 
 
@@ -692,7 +696,7 @@ def main():
         net="kovan",
     )
     print(listtx)
-    listtx2 = get_addresses_from_subgraph(1, 5)
+    listtx2 = get_addresses_from_subgraph(0, 30)
     print(listtx2)
 
 

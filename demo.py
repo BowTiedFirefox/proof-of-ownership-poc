@@ -29,6 +29,8 @@ from eth_account._utils.signing import (
     to_standard_v,
     serializable_unsigned_transaction_from_dict,
 )
+from gql import Client, gql
+from gql.transport.requests import RequestsHTTPTransport
 
 # try one of those if the other doesn't work
 # from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
@@ -461,6 +463,7 @@ def get_transactions_from_address(
                     )
                     return transaction["hash"].hex()
 
+
 @retry(wait=wait_exponential(multiplier=1, min=4, max=10))
 def get_addresses_from_contract(
     contract_address,
@@ -478,7 +481,7 @@ def get_addresses_from_contract(
             print("net should be one of mainnet, goerli, kovan, rinkeby or ropsten")
             return 0
         else:
-            print('requesting...')
+            print("requesting...")
             response = requests.get(
                 etherscan_endpoints[net],
                 params={
@@ -506,7 +509,7 @@ def get_addresses_from_contract(
             if len(rj["result"]) == 0:
                 return ""
             for i in range(len(rj["result"])):
-                if method_id in rj["result"][i]["input"][2:len(method_id)+2]:
+                if method_id in rj["result"][i]["input"][: len(method_id)]:
                     tx_hash = rj["result"][i]["from"]
                     hashes.append(tx_hash)
             return list(set(hashes))
@@ -532,6 +535,31 @@ def get_addresses_from_contract(
                         transaction["hash"].hex(),
                     )
                     return transaction["hash"].hex()
+
+
+def get_addresses_from_subgraph(beg_index, num_account):
+    transport = RequestsHTTPTransport(
+        url="https://api.thegraph.com/subgraphs/name/bowtiedfirefox/punks",
+        verify=True,
+        retries=3,
+    )
+
+    client = Client(transport=transport, fetch_schema_from_transport=False)
+
+    query = gql(
+        """
+        query($first: Int!, $skip: Int!){
+            accounts(first: $first, skip:$skip) {
+                id
+            }          
+        }
+    """
+    )
+    params = {"first": num_account, "skip": beg_index}
+
+    result = client.execute(query, variable_values=params)
+    account_ids = [account["id"] for account in result["accounts"]]
+    return account_ids
 
 
 def check_condition(condition):
@@ -592,7 +620,7 @@ def check_condition(condition):
 def main():
     # TODO: randomize the position of the signer; right now it is the first
     # one, but if it's fixed, then anyone knows that the signer is the first
-    
+
     # y = []
     # addr = []
     # priv = "0x486a304a362cf2c6a0d47e6440b2b179a67e2bcfbf14992e1c193873674e7f73"
@@ -656,14 +684,17 @@ def main():
     # print("signed message verification ok!")
 
     listtx = get_addresses_from_contract(
-    "0x7A4040a2DC1A10beC77dEEA1F13BD8105B9400Ec",
-    method_id='c81d1d5b',
-    provider="etherscan",
-    start_block=0,
-    end_block=38650789 ,
-    net="kovan",
+        "0x7A4040a2DC1A10beC77dEEA1F13BD8105B9400Ec",
+        method_id="0xc81d1d5b",
+        provider="etherscan",
+        start_block=0,
+        end_block=38650789,
+        net="kovan",
     )
     print(listtx)
+    listtx2 = get_addresses_from_subgraph(1, 5)
+    print(listtx2)
+
 
 if __name__ == "__main__":
     main()
